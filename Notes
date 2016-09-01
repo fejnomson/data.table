@@ -1,0 +1,261 @@
+library(data.table)
+
+
+******* should load this package before lubridate and dplyr, but
+	especially lubridate ********************
+
+
+
+# Create a data table
+set.seed(45L)
+DT <- data.table(
+	V1 = c(1L, 2L),
+	V2 = LETTERS[1:3],
+	V3 = round(rnorm(4), 4),
+	V4 = 1:12
+)
+
+
+# Subsetting rows
+DT[3:5, ]
+DT[ V2 == 'A' ]
+DT[V2 == 'A'] # I like this better
+
+
+# Subsetting cols
+DT[ , V2]
+DT[ , list(V2, V3)]
+DT[ , sum(V1)] # sum of col # sum(DT[ , V1])
+DT[ , list(sum(V1), sd(V3))] # return df with sum of V1 col and sd of V3 col
+DT[ , list(sumz = sum(V1), devs = sd(V3))] # return df with named fields
+DT[ , list(V1, Sdev_recycled = sd(V3))] # recycles to length of longest col
+DT[ , {
+	# looks like this just evaluates everything within DT; prints
+	# 	eval(V2, DT), plots eval(V3, DT).
+	print(V2)
+	plot(V3)
+	NULL
+	}]
+
+
+# Groupwise stuff
+DT[ , list(v4_Sum = sum(V4)), by = V1] # DT %>% group_by(V1) %>% summarize(v4_Sum = sum(V4))
+DT[ , list(v4_Sum = sum(V4)), by = list(V1, V2)] # Exactly what it should be
+DT[ , list(v4_Sum = sum(V4)), by = sign(V1 - 1)] # Use a function to create groups
+DT[
+	# Name fields of output df
+	,
+	list(v4_Sum = sum(V4)),
+	by = list(V1_01 = sign(V1 - 1))
+]
+DT[
+	# Looks like you can put an arg into this, cuz blank is ugly
+	TRUE,
+	list(v4_Sum = sum(V4)),
+	by = list(V1_01 = sign(V1 - 1))
+]
+DT[
+	# subset rows on your groupby summarise. This subsets the INPUT to the
+	# 	operation, not the output.
+	1:5,
+	list(v4_Sum = sum(V4)),
+	by = V1
+]
+DT[, .N, by = V1] # Get num of obs. in each group, same as dplyr::n()
+DT[, .N, by = list(V1, V2)]
+
+
+# Altering columns by reference using :=
+DT[ , V1 := round(exp(V1), 2)] # THIS MODS IN PLACE, DOESN'T RETURN A
+DT[ , V1 := V1 - 2.72] # COPY THAT HAS TO BE REASSIGNED!!!!
+DT[
+	# Update multiple cols by reference
+	TRUE,
+	c("V1", "V2") := list(
+		round(exp(V1), 2),
+		LETTERS[4:6]
+	)
+]
+DT[
+	# Same as above, but different sytax. The [] at the end prints to screen.
+	TRUE,
+	':=' (
+		V1 = round(exp(V1), 2),
+		V2 = LETTERS[4:6]
+	)
+][]
+DT[ , V1 := NULL] # Delete cols
+DT[ , c("V1", "V2") := NULL] # Delete multiple cols
+DT <- data.table(
+	V1 = c(1L, 2L),
+	V2 = LETTERS[1:3],
+	V3 = round(rnorm(4), 4),
+	V4 = 1:12
+)
+drops <- c("V2", "V3")
+DT[ , drops := NULL] # this deletes a column named 'drops'
+DT[
+	# drops cols specified in drops vector.
+	TRUE,
+	(drops) := NULL
+][] # this syntax is disgusting. Why should the parens change anything? The NSE here is nasty...
+
+
+# Indexing and Keys
+setkey(DT, V2) # this sorts by the key col
+DT["A"] # like DT[ V2 == "A" ], but supercharged
+DT[c("A", "C")] # DT[ V2 == "A" | V2 == "C"]
+DT["A", mult = "first"] # DT[ V2 == "A" ][1, ] # but supercharged
+DT["A", mult = "last"] # DT[ V2 == "A" ][.N, ] # DT[ V2 == "A" ][nrow(DT), ]
+DT[
+	# If the value doesn't exist, defaults to NA; doesn't drop or throw error
+	c('A', 'D')
+]
+DT[
+	# nomatch arg for controlling what happens when there isn't a match.
+	# 0 means don't return anything.
+	c('A', 'D'),
+	nomatch = 0
+]
+DT[
+	# Subset, then sum
+	# DT[V2 == "A" | V2 == "C", sum(V4)] # but guessing infinity faster
+	c("A", "C"),
+	sum(V4)
+]
+DT[
+	# Subset, then sum for all unique values.
+	# DT[V2 == "A" | V2 == "C", sum(V4), by = V2] # but guessing infinitely faster
+	c("A", "C"),
+	sum(V4),
+	by = .EACHI
+]
+setkey(DT, V1, V2) # set multiple keys
+DT[
+	# Subset to first key == 2 and second key == "C" # but probs super duper fast
+	# DT[V1 == 2 & V2 == "C"]
+	list(2, "C")
+]
+DT[
+	# Subset to the first key == 2 and the second key is either "A" or "C" # probs super fast
+	# DT[V1 == 2 & (V2 == "A" | V2 == "C"), ] # but faster
+	list(2, c("A", "C"))
+]
+DT[.N - 1, ] # df[nrow(df) - 1, ]
+DT[ , .N] # nrow(df) # probably just optimised function for length of the key
+DT[ , list(V2, V3)] # SUBSET multiple cols
+DT[ , mean(V3), by = list(V1, V2)]
+DT[
+	# This prints out the groups. Can you return or work with the groups
+	# 	individually, e.g. in a list?
+	# Also, why does grouping throw out the field you grouped by? e.g. DT[, mean(V2), by = V2]
+	TRUE,
+	print(.SD),
+	by = V2
+]
+DT[
+	# So looks like, basically, .SD is DT, but for each group.
+	# .SD is only accessible in j.
+	TRUE,
+	.SD[c(1, .N)], # This is df_group[1, nrow(df_group), ] for each group
+	by = V2
+]
+get_11 <- function(dt) {
+	# the `[` operator is dispatched to something like `[`.data.table, so
+	# 	it doesn't behave the same as `[`.data.frame
+	dt[.N, ncol(dt), with = FALSE]
+}
+DT[
+	# Looks like you could do ix_dvply and maybe ix_vvply with a data.table
+	# 	backend, calling a user-specified function on each group.
+	# I'm wondering if a user-defined function is significantly slower than
+	# 	one internal to data.table; e.g. this one vs. the one right below.
+	TRUE,
+	get_11(.SD),
+	by = V2
+]
+DT[
+	TRUE,
+	.SD[.N, 3, with = FALSE], # GROUPING DROPS THE GROUP FIELD, SO NCOL IS ONE LESS THAN I THINK IT SHOULD BE
+	by = V2
+]
+DT[
+	# Get sum of each col in .SD
+	TRUE,
+	lapply(.SD, sum),
+	by = V2
+]
+DT[
+	TRUE,
+	lapply(.SD, sum),
+	by = V2,
+	.SDcols = c("V3", "V4") # Use .SDcols to subset cols within SD
+]
+DT[
+	TRUE,
+	lapply(.SD, sum),
+	by = V2,
+	.SDcols = "V4" # Use .SDcols to subset cols within SD
+]
+DT[
+	# .SDcols can be a call
+	TRUE,
+	lapply(.SD, sum),
+	by = V2,
+	.SDcols = paste0("V", 3:4)
+]
+
+
+# CHAINING
+DT2 <- DT[ , .(V4_Sum = sum(V4)), by = V1]; DT2[V4_Sum > 40] # not chained
+DT[ , list(V4_Sum = sum(V4)), by = V1][V4_Sum > 40] # chained
+DT[ , list(V4_Sum = sum(V4)), by = V1][order(-V1)] # chained
+
+
+# SET FAMILY
+# set() is used to repeatedly update rows and cols by reference
+# set() is a loopable low overhead version of :=, but doesn't handle grouping
+# THINKING THIS MIGHT BE SOLUTION TO A PERFORMANT time_split()...
+# This might also make for a clean (for loop) version of get_punch_types()...
+# I wonder how much faster this is than base R...
+rows <- list(3:4, 5:6)
+cols <- 1:2
+for (i in seq_along(rows)) {
+	set(
+	# i == 1 # df[3:4, 1] <- NA
+	# i == 2 # df[5:6, 2] <- NA
+		DT, i = rows[[i]], j = cols[i], value = NA
+	)
+}
+setnames(DT, "V2", "new_name")[] # changes col names by reference
+setnames(DT, c("V1", "V4"), c("first_col", "last_col"))[]
+setcolorder(
+	# Change order of data table columns by reference
+	DT,
+	c("last_col", "V3", "new_name", "first_col") # vect of col names
+)
+
+
+
+
+
+
+dt <- data.table(mtcars)[,.(cyl, mpg)]
+get_col <- function(dt, v) {
+	v2 <- deparse(substitute(v))
+	dt[ , v2, with = F][[1]]
+}
+get_col(dt, mpg)
+
+
+subset_rows <- function(dt, f_subset, val_subset) {
+	# To feed in string input for standard evaluation and referential
+	# 	transparency.
+
+	# Convert f_subset string to symbol
+
+
+	# Subset using symbol
+	dt[]
+}
+
