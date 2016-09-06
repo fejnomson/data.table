@@ -1,3 +1,8 @@
+
+
+
+
+
 library(data.table)
 
 
@@ -236,10 +241,6 @@ setcolorder(
 )
 
 
-
-
-
-
 dt <- data.table(mtcars)[,.(cyl, mpg)]
 get_col <- function(dt, v) {
 	v2 <- deparse(substitute(v))
@@ -251,11 +252,135 @@ get_col(dt, mpg)
 subset_rows <- function(dt, f_subset, val_subset) {
 	# To feed in string input for standard evaluation and referential
 	# 	transparency.
+	# Convert string to symbol and eval as symbol in the call.
 
 	# Convert f_subset string to symbol
+	col <- as.symbol(f_subset)
+
+	# Subset using symbol
+	dt[eval(col, dt) == val_subset, ]
+}
+mtcarz <- data.table(mtcars)
+subset_rows(mtcarz, 'cyl', 6)
+
+subset_rows <- function(dt, f_subset, val_subset) {
+	# To feed in string input for standard evaluation and referential
+	# 	transparency.
+
+	# Subset using symbol
+	dt[dt[[f_subset]] == val_subset, ]
+}
+mtcarz <- data.table(mtcars)
+subset_rows(mtcarz, 'cyl', 6)
+
+
+dt <- mtcarz
+f_row <- 'cyl'
+f_col <- 'mpg'
+subset_rows <- function(dt, f_row, f_col) {
+	# To feed in string input for standard evaluation and referential
+	# 	transparency.
+
+	# Subset using symbol
+	dt[dt[[f_row]] == 6, f_col, with = FALSE]
+}
+mtcarz <- data.table(mtcars)
+subset_rows(mtcarz, 'cyl', 'mpg')
+
+
+subset_rows <- function(dt, f_row, f_col) {
+	# To feed in string input for standard evaluation and referential
+	# 	transparency.
+
+	# Subset using symbol
+	dt[dt[[f_row]] == 6, get(f_col)]
+}
+mtcarz <- data.table(mtcars)
+subset_rows(mtcarz, 'cyl', 'mpg')
+
+subset_rows <- function(dt, f_row, f_col) {
+	# To feed in string input for standard evaluation and referential
+	# 	transparency.
+
+	# Subset using symbol
+	dt[dt[[f_row]] == 6, f_col, with = FALSE]
+}
+mtcarz <- data.table(mtcars)
+subset_rows(mtcarz, 'cyl', 'mpg')
+
+subset_rows <- function(dt, f_row, f_col) {
+	# To feed in string input for standard evaluation and referential
+	# 	transparency.
+
+	# Subset using symbol
+	dt[dt[[f_row]] == 6, dt[[f_col]]] # don't understand why this just returns dt[[f_col]]
+}
+mtcarz <- data.table(mtcars)
+subset_rows(mtcarz, 'cyl', 'mpg')
+
+groupby_sum <- function(dt, f_groups, f_values) {
+	# To feed in string input for standard evaluation and referential
+	# 	transparency.
+
+	# Subset using symbol
+	dt[
+		TRUE,
+		sum(get(f_values)),
+		by = get(f_groups)
+	]
+}
+groupby_sum(mtcarz, 'cyl', 'am')
+
+
+dt <- mtcarz
+f_groups <- 'cyl'
+f_values <- 'am'
+groupby_sum <- function(dt, f_groups, f_values) {
+	# To feed in string input for standard evaluation and referential
+	# 	transparency.
 
 
 	# Subset using symbol
-	dt[]
+	ix_group_sum <- dt[
+		TRUE,
+		sum(get(f_values)),
+		by = get(f_groups)
+	]
+
+	ix_group_first <- data.table(seq_len(dt[, .N]))[
+		TRUE,
+		first(get(f_values)), # eval(as.symbol(f_values), dt)[[1]], # both work
+		by = get(f_groups)
+	]
+	out <- rep(NA, nrow(df))
+	out[ix_group_first] <- ix_group_sum
+
+	dt[ix_group_sum]
+
+	out
 }
+groupby_sum(mtcarz, 'cyl', 'am')
+
+dt[ , c("newcol") := list(seq_len(dt[,.N]))]
+
+# Altering columns by reference using :=
+DT[ , V1 := round(exp(V1), 2)] # THIS MODS IN PLACE, DOESN'T RETURN A
+DT[ , V1 := V1 - 2.72] # COPY THAT HAS TO BE REASSIGNED!!!!
+DT[
+	# Update multiple cols by reference
+	TRUE,
+	c("V1", "V2") := list(
+		round(exp(V1), 2),
+		LETTERS[4:6]
+	)
+]
+DT[
+	# Same as above, but different sytax. The [] at the end prints to screen.
+	TRUE,
+	':=' (
+		V1 = round(exp(V1), 2),
+		V2 = LETTERS[4:6]
+	)
+][]
+DT[ , V1 := NULL] # Delete cols
 
